@@ -29,7 +29,7 @@ namespace bzn
     public:
         crud(std::shared_ptr<bzn::storage_base> storage, std::shared_ptr<bzn::subscription_manager_base> subscription_manager);
 
-        void handle_request(const bzn::caller_id_t& caller_id, const database_msg& request, const std::shared_ptr<bzn::session_base>& session) override;
+        void handle_request(const bzn::caller_id_t& caller_id, const database_msg& request) override;
 
         void start() override;
 

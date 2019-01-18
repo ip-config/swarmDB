@@ -64,13 +64,13 @@ crud::start()
 
 // TODO: RHN - remove session parameter
 void
-crud::handle_request(const bzn::caller_id_t& caller_id, const database_msg& request, const std::shared_ptr<bzn::session_base>& session)
+crud::handle_request(const bzn::caller_id_t& caller_id, const database_msg& request)
 {
     if (auto it = this->message_handlers.find(request.msg_case()); it != this->message_handlers.end())
     {
         LOG(debug) << "processing message: " << uint32_t(request.msg_case());
 
-        it->second(caller_id, request, session);
+        it->second(caller_id, request, nullptr);
 
         return;
     }
@@ -134,6 +134,11 @@ crud::handle_create(const bzn::caller_id_t& caller_id, const database_msg& reque
             }
         }
     }
+
+    request.header().point_of_contact()
+
+
+
 
     if (session)
     {
