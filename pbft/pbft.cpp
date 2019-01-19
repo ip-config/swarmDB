@@ -50,6 +50,7 @@ pbft::pbft(
     , io_context(io_context)
     , audit_heartbeat_timer(this->io_context->make_unique_steady_timer())
     , new_config_timer(this->io_context->make_unique_steady_timer())
+    , join_retry_timer(this->io_context->make_unique_steady_timer())
     , crypto(std::move(crypto))
     , operation_manager(std::move(operation_manager))
 {
@@ -458,28 +459,13 @@ pbft::handle_join_or_leave(const pbft_membership_msg& msg, std::shared_ptr<bzn::
 }
 
 void
-pbft::handle_join_response(const pbft_membership_msg& msg)
+pbft::handle_join_response(const pbft_membership_msg& /*msg*/)
 {
     if (this->in_swarm == swarm_status::joining)
     {
-        if (msg.result())
-        {
-            this->in_swarm = swarm_status::waiting;
-            LOG(debug) << "Successfully joined the swarm, waiting for NEW_VIEW message...";
-        }
-        else
-        {
-            // since we're not persisting configuration to disk, we could be in one of two situations:
-            // either we've been rejected, or we restarted and the swarm still thinks we're a member.
-            // for now (since there's no blacklist yet) we'll assume the latter and try to continue.
-            // there is a potential for problems here if we don't have the latest configuration.
-            // TODO: change this to abort once we're persisting configuration
-            LOG(error) << "Request to join swarm rejected - did we exit and restart?";
-            this->in_swarm = swarm_status::joined;
-
-//            LOG(error) << "Request to join swarm rejected. Aborting...";
-//            throw (std::runtime_error("Request to join swarm rejected."));
-        }
+        this->join_retry_timer->cancel();
+        this->in_swarm = swarm_status::waiting;
+        LOG(debug) << "Successfully joined the swarm, waiting for NEW_VIEW message...";
     }
     else
     {
@@ -1823,6 +1809,24 @@ pbft::join_swarm()
     this->node->send_message(make_endpoint(this->current_peers()[selected]), msg_ptr, false);
 
     this->in_swarm = swarm_status::joining;
+    this->join_retry_timer->expires_from_now(JOIN_RETRY_INTERVAL);
+    this->join_retry_timer->async_wait(
+        std::bind(&pbft::handle_join_retry_timeout, shared_from_this(), std::placeholders::_1));
+}
 
-    // TODO: set timer and retry with different peer if we don't get a response - KEP-980
+void
+pbft::handle_join_retry_timeout(const boost::system::error_code& ec)
+{
+    if (ec == boost::asio::error::operation_aborted)
+    {
+        return;
+    }
+
+    if (ec)
+    {
+        LOG(error) << "handle_new_join_retry_timeout error: " << ec.message();
+        return;
+    }
+
+    this->join_swarm();
 }
