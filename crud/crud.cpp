@@ -135,7 +135,7 @@ crud::handle_create(const bzn::caller_id_t& caller_id, const database_msg& reque
         }
     }
 
-    request.header().point_of_contact()
+    ///request.header().point_of_contact()
 
 
 
