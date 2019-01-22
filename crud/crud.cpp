@@ -62,7 +62,6 @@ crud::start()
 }
 
 
-// TODO: RHN - remove session parameter
 void
 crud::handle_request(const bzn::caller_id_t& caller_id, const database_msg& request)
 {

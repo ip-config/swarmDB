@@ -152,7 +152,7 @@ TEST(database_pbft_service, test_that_apply_operation_now_is_handled)
         bzn_envelope env;
         env.set_database_msg(msg.SerializeAsString());
 
-        EXPECT_CALL(*mock_crud, handle_request(_,_,_));
+        EXPECT_CALL(*mock_crud, handle_request(_,_));
 
         ASSERT_TRUE(dps.apply_operation_now(env, nullptr));
     }
@@ -214,31 +214,31 @@ TEST(database_pbft_service, test_that_stored_operation_is_executed_in_order_and_
     {
         InSequence dummy;
 
-        EXPECT_CALL(*mock_crud, handle_request(_, _, _)).WillOnce(Invoke(
-            [](const bzn::caller_id_t& /*caller_id*/, const database_msg& request, const std::shared_ptr<bzn::session_base>& session)
+        EXPECT_CALL(*mock_crud, handle_request(_, _)).WillOnce(Invoke(
+            [](const bzn::caller_id_t& /*caller_id*/, const database_msg& request)
             {
                EXPECT_EQ(request.msg_case(), database_msg::kCreate);
                EXPECT_EQ(request.create().key(), "key1");
                EXPECT_EQ(request.create().value(), "value1");
-               ASSERT_TRUE(session);
+               //ASSERT_TRUE(session);
             }));
 
-        EXPECT_CALL(*mock_crud, handle_request(_, _, _)).WillOnce(Invoke(
-            [](const bzn::caller_id_t& /*caller_id*/, const database_msg& request, const std::shared_ptr<bzn::session_base>& session)
+        EXPECT_CALL(*mock_crud, handle_request(_, _)).WillOnce(Invoke(
+            [](const bzn::caller_id_t& /*caller_id*/, const database_msg& request)
             {
                 EXPECT_EQ(request.msg_case(), database_msg::kCreate);
                 EXPECT_EQ(request.create().key(), "key2");
                 EXPECT_EQ(request.create().value(), "value2");
-                ASSERT_FALSE(session); // operation2 never had a session set
+                //ASSERT_FALSE(session); // operation2 never had a session set
             }));
 
-        EXPECT_CALL(*mock_crud, handle_request(_, _, _)).WillOnce(Invoke(
-            [](const bzn::caller_id_t& /*caller_id*/, const database_msg& request, const std::shared_ptr<bzn::session_base>& session)
+        EXPECT_CALL(*mock_crud, handle_request(_, _)).WillOnce(Invoke(
+            [](const bzn::caller_id_t& /*caller_id*/, const database_msg& request)
             {
                 EXPECT_EQ(request.msg_case(), database_msg::kCreate);
                 EXPECT_EQ(request.create().key(), "key3");
                 EXPECT_EQ(request.create().value(), "value3");
-                ASSERT_TRUE(session); // operation3 session still around
+                //ASSERT_TRUE(session); // operation3 session still around
             }));
     }
 
@@ -285,9 +285,9 @@ TEST(database_pbft_service, test_that_set_state_catches_up_backlogged_operations
     ASSERT_EQ(uint64_t(0), dps.applied_requests_count());
 
     // only the last two operations should be applied after we set the state @ 100
-    EXPECT_CALL(*mock_crud, handle_request(_, ResultOf(test::database_msg_seq, 101), _))
+    EXPECT_CALL(*mock_crud, handle_request(_, ResultOf(test::database_msg_seq, 101)))
         .Times(Exactly(1));
-    EXPECT_CALL(*mock_crud, handle_request(_, ResultOf(test::database_msg_seq, 102), _))
+    EXPECT_CALL(*mock_crud, handle_request(_, ResultOf(test::database_msg_seq, 102)))
         .Times(Exactly(1));
     EXPECT_CALL(*mock_io_context, post(_))
         .Times(Exactly(2));

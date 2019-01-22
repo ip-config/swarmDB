@@ -76,7 +76,7 @@ database_pbft_service::apply_operation(const std::shared_ptr<bzn::pbft_operation
 
 
 bool
-database_pbft_service::apply_operation_now(const bzn_envelope& msg, std::shared_ptr<bzn::session_base> session)
+database_pbft_service::apply_operation_now(const bzn_envelope& msg, std::shared_ptr<bzn::session_base> /*session*/)
 {
     if (msg.payload_case() == bzn_envelope::kDatabaseMsg)
     {
@@ -88,7 +88,7 @@ database_pbft_service::apply_operation_now(const bzn_envelope& msg, std::shared_
         {
             LOG(debug) << "handling quick read";
 
-            this->crud->handle_request(msg.sender(), db_msg, std::move(session));
+            this->crud->handle_request(msg.sender(), db_msg);
 
             return true;
         }
@@ -127,14 +127,14 @@ database_pbft_service::process_awaiting_operations()
 
         if (op_it != this->operations_awaiting_result.end() && op_it->second->has_session() && op_it->second->session()->is_open())
         {
-            this->crud->handle_request(op_it->second->get_request().sender(), request, op_it->second->session());
+            this->crud->handle_request(op_it->second->get_request().sender(), request);
         }
         else
         {
             // session not found then this was probably loaded from the database...
             LOG(info) << "We do not have a pending operation for this request";
 
-            this->crud->handle_request(op_it->second->get_request().sender(), request, nullptr);
+            this->crud->handle_request(op_it->second->get_request().sender(), request);
         }
 
         if (op_it != this->operations_awaiting_result.end())
