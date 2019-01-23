@@ -76,6 +76,8 @@ namespace bzn
         virtual std::shared_ptr<std::string> get_snapshot() = 0;
 
         virtual bool load_snapshot(const std::string& data) = 0;
-    };
+
+        virtual std::vector<bzn::key_t> get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) = 0;
+};
 
 } // bzn

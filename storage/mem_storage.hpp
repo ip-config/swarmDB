@@ -48,8 +48,10 @@ namespace bzn
 
         bool load_snapshot(const std::string& data) override;
 
+        std::vector<bzn::key_t> get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) override;
+
     private:
-        std::unordered_map<bzn::uuid_t, std::unordered_map<bzn::key_t, bzn::value_t>> kv_store;
+        std::unordered_map<bzn::uuid_t, std::map<bzn::key_t, bzn::value_t>> kv_store;
 
         std::shared_mutex lock; // for multi-reader and single writer access
 

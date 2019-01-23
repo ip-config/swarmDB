@@ -16,6 +16,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/serialization/unordered_map.hpp>
+#include <boost/serialization/map.hpp>
 #include <sstream>
 
 using namespace bzn;
@@ -263,4 +264,25 @@ mem_storage::load_snapshot(const std::string& data)
     }
 
     return false;
+}
+
+std::vector<bzn::key_t>
+mem_storage::get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key)
+{
+    std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
+
+    auto inner_db = this->kv_store.find(uuid);
+
+    if (inner_db == this->kv_store.end())
+    {
+        return {};
+    }
+
+    std::vector<std::string> keys;
+    for (auto match = inner_db->second.lower_bound(begin_key); match != inner_db->second.upper_bound(end_key); match++)
+    {
+        keys.emplace_back(match->first);
+    }
+
+    return keys;
 }

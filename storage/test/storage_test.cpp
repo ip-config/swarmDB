@@ -288,3 +288,23 @@ TYPED_TEST(storageTest, test_snapshot)
     EXPECT_FALSE(this->storage->has(user_0, "key2"));
     EXPECT_FALSE(this->storage->has(user_0, "key3"));
 }
+
+TYPED_TEST(storageTest, test_get_keys_in_range)
+{
+    const bzn::uuid_t user_0{"b9dc2595-15ee-435a-8af7-7cafc132f527"};
+
+    this->storage->create(user_0, "aaa", "value");
+    this->storage->create(user_0, "aab", "value");
+    this->storage->create(user_0, "abb", "value");
+    this->storage->create(user_0, "abc", "value");
+    this->storage->create(user_0, "bbc", "value");
+    this->storage->create(user_0, "bcc", "value");
+    this->storage->create(user_0, "bcd", "value");
+    this->storage->create(user_0, "bdd", "value");
+    this->storage->create(user_0, "bde", "value");
+
+    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "a", "z").size(), 9u);
+    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "a", "ab").size(), 2u);
+    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "aa", "bd").size(), 7u);
+    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "be", "z").size(), 0u);
+}
