@@ -13,7 +13,9 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include <crud/crud.hpp>
+#include <pbft/pbft.hpp>
 #include <boost/algorithm/string/trim_all.hpp>
+#include <utils/make_endpoint.hpp>
 
 using namespace bzn;
 using namespace std::placeholders;
@@ -80,7 +82,7 @@ crud::handle_request(const bzn::caller_id_t& caller_id, const database_msg& requ
 // TODO RHN - remove the session parameter
 void
 crud::send_response(const database_msg& request, const bzn::storage_result result,
-    database_response&& response, std::shared_ptr<bzn::session_base>& session)
+    database_response&& response)
 {
     *response.mutable_header() = request.header();
 
@@ -102,14 +104,33 @@ crud::send_response(const database_msg& request, const bzn::storage_result resul
     // TODO: crypto
 
 
+    // (database_msg) -> (endpoint)
+    database_msg database_msg;
+    database_msg.ParseFromString(env.database_msg());
 
-    // TODO: RHN - instead of this, use the point of contact info in the database message header
-    session->send_message(std::make_shared<std::string>(env.SerializeAsString()), false);
+    try
+    {
+        if(this->pbft)
+        {
+            bzn::uuid_t point_of_contact{database_msg.header().point_of_contact()};
+            peer_address_t point_of_contact_address = this->pbft->get_peer_by_uuid(point_of_contact);
+            boost::asio::ip::tcp::endpoint endpoint{bzn::make_endpoint(point_of_contact_address)};
+            this->pbft->get_node()->send_message(endpoint, std::make_shared<bzn_envelope>(env), false);
+        }
+        else
+        {
+            LOG(error) << "Unable to send response to point of contact, pbft not set in crud module.";
+        }
+    }
+    catch(const std::runtime_error& err)
+    {
+        LOG(error) << err.what();
+    }
 }
 
 
 void
-crud::handle_create(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_create(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result{bzn::storage_result::db_not_found};
 
@@ -134,26 +155,14 @@ crud::handle_create(const bzn::caller_id_t& caller_id, const database_msg& reque
         }
     }
 
-    ///request.header().point_of_contact()
-
-
-
-
-    if (session)
-    {
-        this->send_response(request, result, database_response(), session);
-
-        return;
-    }
-
-    LOG(warning) << "session no longer available. CREATE response not sent.";
+    this->send_response(request, result, database_response());
 }
 
 
 void
-crud::handle_read(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_read(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+ //   if (session)
     {
         std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
@@ -170,7 +179,7 @@ crud::handle_read(const bzn::caller_id_t& /*caller_id*/, const database_msg& req
         }
 
         this->send_response(request, (result) ? bzn::storage_result::ok : bzn::storage_result::not_found,
-            std::move(response), session);
+            std::move(response));
 
         return;
     }
@@ -180,7 +189,7 @@ crud::handle_read(const bzn::caller_id_t& /*caller_id*/, const database_msg& req
 
 // TODO: Rich - remove session
 void
-crud::handle_update(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_update(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result{bzn::storage_result::db_not_found};
 
@@ -205,9 +214,9 @@ crud::handle_update(const bzn::caller_id_t& caller_id, const database_msg& reque
         }
     }
 
-    if (session)
+    //if (session)
     {
-        this->send_response(request, result, database_response(), session);
+        this->send_response(request, result, database_response());
 
         return;
     }
@@ -218,7 +227,7 @@ crud::handle_update(const bzn::caller_id_t& caller_id, const database_msg& reque
 
 // TODO: Rich - remove session
 void
-crud::handle_delete(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_delete(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result{bzn::storage_result::db_not_found};
 
@@ -243,9 +252,9 @@ crud::handle_delete(const bzn::caller_id_t& caller_id, const database_msg& reque
         }
     }
 
-    if (session)
+//    if (session)
     {
-        this->send_response(request, result, database_response(), session);
+        this->send_response(request, result, database_response());
 
         return;
     }
@@ -256,9 +265,9 @@ crud::handle_delete(const bzn::caller_id_t& caller_id, const database_msg& reque
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_has(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_has(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+    //if (session)
     {
         std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
@@ -267,7 +276,7 @@ crud::handle_has(const bzn::caller_id_t& /*caller_id*/, const database_msg& requ
         response.mutable_has()->set_key(request.has().key());
         response.mutable_has()->set_has(this->storage->has(request.header().db_uuid(), request.has().key()));
 
-        this->send_response(request, bzn::storage_result::ok, std::move(response), session);
+        this->send_response(request, bzn::storage_result::ok, std::move(response));
 
         return;
     }
@@ -278,9 +287,9 @@ crud::handle_has(const bzn::caller_id_t& /*caller_id*/, const database_msg& requ
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_keys(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_keys(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+    //if (session)
     {
         std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
@@ -294,7 +303,7 @@ crud::handle_keys(const bzn::caller_id_t& /*caller_id*/, const database_msg& req
             response.mutable_keys()->add_keys(key);
         }
 
-        this->send_response(request, bzn::storage_result::ok, std::move(response), session);
+        this->send_response(request, bzn::storage_result::ok, std::move(response));
 
         return;
     }
@@ -304,9 +313,9 @@ crud::handle_keys(const bzn::caller_id_t& /*caller_id*/, const database_msg& req
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_size(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_size(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+    //if (session)
     {
         std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
@@ -317,7 +326,7 @@ crud::handle_size(const bzn::caller_id_t& /*caller_id*/, const database_msg& req
         response.mutable_size()->set_keys(keys);
         response.mutable_size()->set_bytes(size);
 
-        this->send_response(request, bzn::storage_result::ok, std::move(response), session);
+        this->send_response(request, bzn::storage_result::ok, std::move(response));
 
         return;
     }
@@ -327,27 +336,31 @@ crud::handle_size(const bzn::caller_id_t& /*caller_id*/, const database_msg& req
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_subscribe(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_subscribe(const bzn::caller_id_t& /*caller_id*/, const database_msg& /*request*/, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+    /*
+    //if (session)
     {
         database_response response;
 
         this->subscription_manager->subscribe(request.header().db_uuid(), request.subscribe().key(),
             request.header().nonce(), response, session);
 
-        this->send_response(request, bzn::storage_result::ok, std::move(response), session);
+        this->send_response(request, bzn::storage_result::ok, std::move(response));
 
         return;
     }
 
+     */
     LOG(warning) << "session no longer available. SUBSCRIBE not executed.";
 }
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_unsubscribe(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_unsubscribe(const bzn::caller_id_t& /*caller_id*/, const database_msg& /*request*/, std::shared_ptr<bzn::session_base> /*session*/)
 {
+
+    /*
     if (session)
     {
         database_response response;
@@ -355,18 +368,19 @@ crud::handle_unsubscribe(const bzn::caller_id_t& /*caller_id*/, const database_m
         this->subscription_manager->unsubscribe(request.header().db_uuid(), request.unsubscribe().key(),
             request.unsubscribe().nonce(), response, session);
 
-        this->send_response(request, bzn::storage_result::ok, std::move(response), session);
+        this->send_response(request, bzn::storage_result::ok, std::move(response));
 
         return;
     }
 
+     */
     // subscription manager will cleanup stale sessions...
     LOG(warning) << "session no longer available. UNSUBSCRIBE not executed.";
 }
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_create_db(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_create_db(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result;
 
@@ -381,9 +395,9 @@ crud::handle_create_db(const bzn::caller_id_t& caller_id, const database_msg& re
         result = this->storage->create(PERMISSION_UUID, request.header().db_uuid(), this->create_permission_data(caller_id));
     }
 
-    if (session)
+    //if (session)
     {
-        this->send_response(request, result, database_response(), session);
+        this->send_response(request, result, database_response());
 
         return;
     }
@@ -393,7 +407,7 @@ crud::handle_create_db(const bzn::caller_id_t& caller_id, const database_msg& re
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_delete_db(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_delete_db(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result{bzn::storage_result::db_not_found};
 
@@ -415,9 +429,9 @@ crud::handle_delete_db(const bzn::caller_id_t& caller_id, const database_msg& re
         }
     }
 
-    if (session)
+    //if (session)
     {
-        this->send_response(request, result, database_response(), session);
+        this->send_response(request, result, database_response());
 
         return;
     }
@@ -427,9 +441,9 @@ crud::handle_delete_db(const bzn::caller_id_t& caller_id, const database_msg& re
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_has_db(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_has_db(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+    //if (session)
     {
         std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
@@ -438,7 +452,7 @@ crud::handle_has_db(const bzn::caller_id_t& /*caller_id*/, const database_msg& r
         response.mutable_has_db()->set_uuid(request.header().db_uuid());
         response.mutable_has_db()->set_has(this->storage->has(PERMISSION_UUID, request.header().db_uuid()));
 
-        this->send_response(request, bzn::storage_result::ok, std::move(response), session);
+        this->send_response(request, bzn::storage_result::ok, std::move(response));
 
         return;
     }
@@ -448,9 +462,9 @@ crud::handle_has_db(const bzn::caller_id_t& /*caller_id*/, const database_msg& r
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_writers(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_writers(const bzn::caller_id_t& /*caller_id*/, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
-    if (session)
+    //if (session)
     {
         bzn::storage_result result{bzn::storage_result::not_found};
 
@@ -469,13 +483,13 @@ crud::handle_writers(const bzn::caller_id_t& /*caller_id*/, const database_msg& 
                 resp.mutable_writers()->add_writers(writer.asString());
             }
 
-            this->send_response(request, bzn::storage_result::ok, std::move(resp), session);
+            this->send_response(request, bzn::storage_result::ok, std::move(resp));
 
             return;
         }
         else
         {
-            this->send_response(request, result, database_response(), session);
+            this->send_response(request, result, database_response());
         }
 
         return;
@@ -486,7 +500,7 @@ crud::handle_writers(const bzn::caller_id_t& /*caller_id*/, const database_msg& 
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_add_writers(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_add_writers(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result{bzn::storage_result::db_not_found};
 
@@ -513,9 +527,9 @@ crud::handle_add_writers(const bzn::caller_id_t& caller_id, const database_msg& 
         }
     }
 
-    if (session)
+    //if (session)
     {
-        this->send_response(request, result, database_response(), session);
+        this->send_response(request, result, database_response());
 
         return;
     }
@@ -525,7 +539,7 @@ crud::handle_add_writers(const bzn::caller_id_t& caller_id, const database_msg& 
 
 // TODO: Rich - remove session - replace with send message to point of contact
 void
-crud::handle_remove_writers(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> session)
+crud::handle_remove_writers(const bzn::caller_id_t& caller_id, const database_msg& request, std::shared_ptr<bzn::session_base> /*session*/)
 {
     bzn::storage_result result{bzn::storage_result::db_not_found};
 
@@ -552,9 +566,9 @@ crud::handle_remove_writers(const bzn::caller_id_t& caller_id, const database_ms
         }
     }
 
-    if (session)
+    //if (session)
     {
-        this->send_response(request, result, database_response(), session);
+        this->send_response(request, result, database_response());
 
         return;
     }
