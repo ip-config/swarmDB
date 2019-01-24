@@ -386,21 +386,27 @@ rocksdb_storage::load_snapshot(const std::string& data)
     return false;
 }
 
-std::vector<bzn::key_t>
-rocksdb_storage::get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key)
+void
+rocksdb_storage::remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key)
 {
     std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
-    std::unique_ptr<rocksdb::Iterator> iter(this->db->NewIterator(rocksdb::ReadOptions()));
-
     std::vector<bzn::key_t> v;
-    auto begin = uuid + begin_key;
-    auto end = uuid + end_key;
-    for (iter->Seek(begin); iter->Valid() && strncmp(iter->key().data(), begin.c_str(), begin.size()) < 0; iter->Next())
-    {
-        iter->key().
-        v.emplace_back(iter->key().ToString().substr(uuid.size()));
-    }
 
-    return v;
+    auto begin_str = generate_key(uuid, begin_key);
+    rocksdb::Slice begin(begin_str);
+
+    auto end_str = generate_key(uuid, end_key);
+    rocksdb::Slice end(end_str);
+
+    rocksdb::WriteOptions write_options;
+    write_options.sync = true;
+
+    this->db->DeleteRange(write_options, nullptr, begin, end);
+}
+
+std::vector<bzn::key_t>
+rocksdb_storage::get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix)
+{
+    return get_keys(generate_key(uuid, prefix));
 }

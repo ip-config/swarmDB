@@ -289,7 +289,7 @@ TYPED_TEST(storageTest, test_snapshot)
     EXPECT_FALSE(this->storage->has(user_0, "key3"));
 }
 
-TYPED_TEST(storageTest, test_get_keys_in_range)
+TYPED_TEST(storageTest, test_range_queries)
 {
     const bzn::uuid_t user_0{"b9dc2595-15ee-435a-8af7-7cafc132f527"};
 
@@ -302,9 +302,19 @@ TYPED_TEST(storageTest, test_get_keys_in_range)
     this->storage->create(user_0, "bcd", "value");
     this->storage->create(user_0, "bdd", "value");
     this->storage->create(user_0, "bde", "value");
+    EXPECT_EQ(this->storage->get_size(user_0).first, 9u);
 
-    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "a", "z").size(), 9u);
-    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "a", "ab").size(), 2u);
-    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "aa", "bd").size(), 7u);
-    EXPECT_EQ(this->storage->get_keys_in_range(user_0, "be", "z").size(), 0u);
+    EXPECT_EQ(this->storage->get_keys_starting_with(user_0, "a").size(), 4u);
+    EXPECT_EQ(this->storage->get_keys_starting_with(user_0, "b").size(), 5u);
+    EXPECT_EQ(this->storage->get_keys_starting_with(user_0, "c").size(), 0u);
+    EXPECT_EQ(this->storage->get_keys_starting_with(user_0, "ab").size(), 2u);
+
+    this->storage->remove_range(user_0, "a", "abb");
+    EXPECT_EQ(this->storage->get_size(user_0).first, 7u);
+
+    this->storage->remove_range(user_0, "aa", "bdd");
+    EXPECT_EQ(this->storage->get_size(user_0).first, 2u);
+
+    this->storage->remove_range(user_0, "be", "z");
+    EXPECT_EQ(this->storage->get_size(user_0).first, 2u);
 }

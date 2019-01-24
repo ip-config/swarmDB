@@ -46,6 +46,7 @@ namespace bzn
         std::map<bzn::uuid_t, bzn_envelope> get_prepares() const override;
 
         static std::string generate_prefix(uint64_t view, uint64_t sequence, const bzn::hash_t& request_hash);
+        static std::string generate_key(const std::string& prefix, const std::string& key);
 
     private:
         std::string typed_prefix(pbft_msg_type pbft_type) const;

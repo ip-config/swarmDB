@@ -22,6 +22,7 @@ using namespace bzn;
 namespace {
     const std::string STAGE_KEY = "stage";
     const std::string REQUEST_KEY = "request";
+    const std::string OPERATIONS_UUID = "pbft_operations_data";
 }
 
 std::string
@@ -32,13 +33,22 @@ pbft_persistent_operation::generate_prefix(uint64_t view, uint64_t sequence, con
     return (boost::format("%020u_%s_%020u") % sequence % request_hash % view).str();
 }
 
+std::string
+pbft_persistent_operation::generate_key(const std::string& prefix, const std::string& key)
+{
+    // Integers formatted to 20 digits, which is the maximum length of a 64 bit uint- they need to have constant length
+    // to be sorted correctly for prefix searches and the like
+    return prefix + "_" + key;
+}
+
 pbft_persistent_operation::pbft_persistent_operation(uint64_t view, uint64_t sequence, const bzn::hash_t& request_hash, std::shared_ptr<bzn::storage_base> storage, size_t peers_size)
         : pbft_operation(view, sequence, request_hash)
         , peers_size(peers_size)
         , storage(std::move(storage))
         , prefix(pbft_persistent_operation::generate_prefix(view, sequence, request_hash))
 {
-    const auto response = this->storage->create(prefix, STAGE_KEY, std::to_string(static_cast<unsigned int>(pbft_operation_stage::prepare)));
+    const auto response = this->storage->create(OPERATIONS_UUID, generate_key(prefix, STAGE_KEY)
+        , std::to_string(static_cast<unsigned int>(pbft_operation_stage::prepare)));
     switch (response)
     {
         case storage_result::ok:
@@ -63,7 +73,9 @@ pbft_persistent_operation::record_pbft_msg(const pbft_msg& msg, const bzn_envelo
         return;
     }
 
-    const auto response = this->storage->create(this->typed_prefix(msg.type()), encoded_msg.sender(), encoded_msg.SerializeAsString());
+    const auto response = this->storage->create(OPERATIONS_UUID
+        , generate_key(this->typed_prefix(msg.type()), encoded_msg.sender()), encoded_msg.SerializeAsString());
+
     switch (response)
     {
         case storage_result::ok:
@@ -80,7 +92,7 @@ pbft_persistent_operation::record_pbft_msg(const pbft_msg& msg, const bzn_envelo
 pbft_operation_stage
 pbft_persistent_operation::get_stage() const
 {
-    const auto response = this->storage->read(this->prefix, STAGE_KEY);
+    const auto response = this->storage->read(OPERATIONS_UUID, generate_key(this->prefix, STAGE_KEY));
     if (!response)
     {
         throw std::runtime_error("failed to read stage of pbft_operation " + this->prefix + " from storage");
@@ -111,7 +123,8 @@ pbft_persistent_operation::advance_operation_stage(pbft_operation_stage new_stag
             throw std::runtime_error("unknown pbft_operation_stage: " + std::to_string(static_cast<int>(new_stage)));
     }
 
-    const auto response = this->storage->update(this->prefix, STAGE_KEY, std::to_string(static_cast<int>(new_stage)));
+    const auto response = this->storage->update(OPERATIONS_UUID, generate_key(this->prefix, STAGE_KEY)
+        , std::to_string(static_cast<int>(new_stage)));
     if (response != storage_result::ok)
     {
         throw std::runtime_error("failed to write operation stage update: " + storage_result_msg.at(response));
@@ -121,25 +134,24 @@ pbft_persistent_operation::advance_operation_stage(pbft_operation_stage new_stag
 bool
 pbft_persistent_operation::is_preprepared() const
 {
-    size_t keys;
-    std::tie(keys, std::ignore) = this->storage->get_size(this->typed_prefix(pbft_msg_type::PBFT_MSG_PREPREPARE));
-    return keys > 0;
+    return this->storage->get_keys_starting_with(OPERATIONS_UUID
+        , this->typed_prefix(pbft_msg_type::PBFT_MSG_PREPREPARE)).size() > 0;
 }
 
 bool
 pbft_persistent_operation::is_prepared() const
 {
-    size_t keys;
-    std::tie(keys, std::ignore) = this->storage->get_size(this->typed_prefix(pbft_msg_type::PBFT_MSG_PREPARE));
-    return keys >= pbft::honest_majority_size(this->peers_size) && this->is_preprepared() && this->has_request();
+    return this->storage->get_keys_starting_with(OPERATIONS_UUID
+        , this->typed_prefix(pbft_msg_type::PBFT_MSG_PREPARE)).size() >= pbft::honest_majority_size(this->peers_size)
+        && this->is_preprepared() && this->has_request();
 }
 
 bool
 pbft_persistent_operation::is_committed() const
 {
-    size_t keys;
-    std::tie(keys, std::ignore) = this->storage->get_size(this->typed_prefix(pbft_msg_type::PBFT_MSG_COMMIT));
-    return keys >= pbft::honest_majority_size(this->peers_size) && this->is_prepared();
+    return this->storage->get_keys_starting_with(OPERATIONS_UUID
+        , this->typed_prefix(pbft_msg_type::PBFT_MSG_COMMIT)).size() >= pbft::honest_majority_size(this->peers_size)
+           && this->is_prepared();
 }
 
 void
@@ -151,7 +163,8 @@ pbft_persistent_operation::record_request(const bzn_envelope& encoded_request)
         return;
     }
 
-    const auto response = this->storage->create(this->prefix, REQUEST_KEY, encoded_request.SerializeAsString());
+    const auto response = this->storage->create(OPERATIONS_UUID, generate_key(this->prefix, REQUEST_KEY)
+        , encoded_request.SerializeAsString());
     switch (response)
     {
         case storage_result::ok:
@@ -183,8 +196,8 @@ pbft_persistent_operation::load_transient_request() const
         return;
     }
 
-    const auto response = this->storage->read(this->prefix, REQUEST_KEY);
-    if(!response.has_value())
+    const auto response = this->storage->read(OPERATIONS_UUID, generate_key(this->prefix, REQUEST_KEY));
+    if (!response.has_value())
     {
         return;
     }
@@ -257,14 +270,14 @@ pbft_persistent_operation::typed_prefix(pbft_msg_type pbft_type) const
 bzn_envelope
 pbft_persistent_operation::get_preprepare() const
 {
-    auto keys = this->storage->get_keys(this->typed_prefix(PBFT_MSG_PREPREPARE));
+    auto keys = this->storage->get_keys_starting_with(OPERATIONS_UUID, this->typed_prefix(pbft_msg_type::PBFT_MSG_PREPREPARE));
     if (keys.size() == 0)
     {
         throw std::runtime_error("tried to fetch a preprepare that we don't have for operation " + this->prefix);
     }
 
     bzn_envelope env;
-    if (!env.ParseFromString(this->storage->read(this->typed_prefix(PBFT_MSG_PREPREPARE), keys.at(0)).value_or("")))
+    if (!env.ParseFromString(this->storage->read(OPERATIONS_UUID, keys.at(0)).value_or("")))
     {
         throw std::runtime_error("failed to parse or fetch preprepare that we supposedly have? " + this->prefix);
     }
@@ -275,12 +288,12 @@ pbft_persistent_operation::get_preprepare() const
 std::map<bzn::uuid_t, bzn_envelope>
 pbft_persistent_operation::get_prepares() const
 {
-    auto keys = this->storage->get_keys(this->typed_prefix(PBFT_MSG_PREPARE));
+    auto keys = this->storage->get_keys_starting_with(OPERATIONS_UUID, this->typed_prefix(pbft_msg_type::PBFT_MSG_PREPARE));
     std::map<uuid_t, bzn_envelope> result;
 
     for (const auto& key : keys)
     {
-        if (!result[key].ParseFromString(this->storage->read(this->typed_prefix(PBFT_MSG_PREPARE), key).value_or("")))
+        if (!result[key].ParseFromString(this->storage->read(OPERATIONS_UUID, key).value_or("")))
         {
             throw std::runtime_error("failed to parse or fetch prepare that we supposedly have? " + this->prefix);
         }

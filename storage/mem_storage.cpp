@@ -266,22 +266,39 @@ mem_storage::load_snapshot(const std::string& data)
     return false;
 }
 
-std::vector<bzn::key_t>
-mem_storage::get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key)
+void
+mem_storage::remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key)
 {
     std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
     auto inner_db = this->kv_store.find(uuid);
 
-    if (inner_db == this->kv_store.end())
+    if (inner_db != this->kv_store.end())
     {
-        return {};
+        auto match = inner_db->second.lower_bound(begin_key);
+        auto end = inner_db->second.lower_bound(end_key);
+        while (match != end)
+        {
+            match = inner_db->second.erase(match);
+        }
     }
+}
+
+std::vector<bzn::key_t>
+mem_storage::get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix)
+{
+    std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
+
+    auto inner_db = this->kv_store.find(uuid);
 
     std::vector<std::string> keys;
-    for (auto match = inner_db->second.lower_bound(begin_key); match != inner_db->second.upper_bound(end_key); match++)
+    if (inner_db != this->kv_store.end())
     {
-        keys.emplace_back(match->first);
+        for (auto it = inner_db->second.lower_bound(prefix); it != inner_db->second.end()
+            && !it->first.compare(0, prefix.size(), prefix); it++)
+        {
+            keys.emplace_back(it->first);
+        }
     }
 
     return keys;

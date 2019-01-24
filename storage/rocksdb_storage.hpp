@@ -50,7 +50,9 @@ namespace bzn
 
         bool load_snapshot(const std::string& data) override;
 
-        std::vector<bzn::key_t> get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) override;
+        void remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) override;
+
+        std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix) override;
 
     private:
         void open();

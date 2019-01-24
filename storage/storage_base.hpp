@@ -77,7 +77,9 @@ namespace bzn
 
         virtual bool load_snapshot(const std::string& data) = 0;
 
-        virtual std::vector<bzn::key_t> get_keys_in_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) = 0;
+        virtual void remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) = 0;
+
+        virtual std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix) = 0;
 };
 
 } // bzn
