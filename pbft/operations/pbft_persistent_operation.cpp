@@ -41,13 +41,19 @@ pbft_persistent_operation::generate_key(const std::string& prefix, const std::st
     return prefix + "_" + key;
 }
 
+std::string
+pbft_persistent_operation::key_for_sequence(uint64_t sequence)
+{
+    return (boost::format("%020u_") % sequence).str();
+}
+
 pbft_persistent_operation::pbft_persistent_operation(uint64_t view, uint64_t sequence, const bzn::hash_t& request_hash, std::shared_ptr<bzn::storage_base> storage, size_t peers_size)
         : pbft_operation(view, sequence, request_hash)
         , peers_size(peers_size)
         , storage(std::move(storage))
         , prefix(pbft_persistent_operation::generate_prefix(view, sequence, request_hash))
 {
-    const auto response = this->storage->create(OPERATIONS_UUID, generate_key(prefix, STAGE_KEY)
+    const auto response = this->storage->create(OPERATIONS_UUID, generate_key(this->prefix, STAGE_KEY)
         , std::to_string(static_cast<unsigned int>(pbft_operation_stage::prepare)));
     switch (response)
     {
@@ -300,4 +306,10 @@ pbft_persistent_operation::get_prepares() const
     }
 
     return result;
+}
+
+const std::string&
+pbft_persistent_operation::get_uuid()
+{
+    return OPERATIONS_UUID;
 }

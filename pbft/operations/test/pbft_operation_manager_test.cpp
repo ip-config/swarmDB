@@ -16,6 +16,8 @@
 #include <bootstrap/bootstrap_peers_base.hpp>
 #include <pbft/operations/pbft_operation_manager.hpp>
 #include <proto/pbft.pb.h>
+#include <storage/rocksdb_storage.hpp>
+#include <options/options.hpp>
 
 using namespace ::testing;
 

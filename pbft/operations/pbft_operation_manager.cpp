@@ -27,6 +27,13 @@ pbft_operation_manager::pbft_operation_manager(std::optional<std::shared_ptr<bzn
     {
         LOG(warning) << "pbft operation operation manager constructed without a storage backend; operations will not be persistent";
     }
+    else
+    {
+        for (auto k : (*(this->storage))->get_keys(pbft_persistent_operation::get_uuid()))
+        {
+
+        }
+    }
 }
 
 std::shared_ptr<pbft_operation>
@@ -92,7 +99,9 @@ pbft_operation_manager::delete_operations_until(uint64_t sequence)
 
     if (this->storage)
     {
-        LOG(warning) << "cleaning up operation state from storage not implemented (KEP-909)";
+        LOG(debug) << "cleaning up operation state from storage";
+        (*this->storage)->remove_range(pbft_persistent_operation::get_uuid()
+            , pbft_persistent_operation::key_for_sequence(0), pbft_persistent_operation::key_for_sequence(sequence));
     }
 }
 
