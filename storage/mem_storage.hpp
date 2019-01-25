@@ -50,7 +50,10 @@ namespace bzn
 
         void remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) override;
 
-        std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix) override;
+        std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t& uuid, const std::string& prefix) override;
+
+        std::vector<std::pair<bzn::key_t, bzn::value_t>>
+        get_matching(const bzn::uuid_t& uuid, const std::string& pattern, std::optional<std::string> end = std::nullopt) override;
 
     private:
         std::unordered_map<bzn::uuid_t, std::map<bzn::key_t, bzn::value_t>> kv_store;
@@ -58,6 +61,10 @@ namespace bzn
         std::shared_mutex lock; // for multi-reader and single writer access
 
         std::shared_ptr<std::string> latest_snapshot;
+
+        std::string make_start_prefix(const std::string& pattern);
+
+        std::string make_end_prefix(const std::string& start_prefix);
     };
 
 } // bzn

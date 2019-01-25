@@ -52,7 +52,10 @@ namespace bzn
 
         void remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) override;
 
-        std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix) override;
+        std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t& uuid, const std::string& prefix) override;
+
+        std::vector<std::pair<bzn::key_t, bzn::value_t>>
+        get_matching(const bzn::uuid_t& uuid, const std::string& pattern, std::optional<std::string> end = std::nullopt) override;
 
     private:
         void open();

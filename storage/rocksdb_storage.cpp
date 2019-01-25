@@ -51,7 +51,7 @@ rocksdb_storage::open()
 
     LOG(info) << "database path: " << db_path;
 
-    rocksdb::Status s = rocksdb::DB::Open(options, db_path, &rocksdb);
+    rocksdb::Status s = rocksdb::DB::Open(options, db_path,& rocksdb);
 
     if (!s.ok())
     {
@@ -406,7 +406,15 @@ rocksdb_storage::remove_range(const bzn::uuid_t& uuid, const std::string& begin_
 }
 
 std::vector<bzn::key_t>
-rocksdb_storage::get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix)
+rocksdb_storage::get_keys_starting_with(const bzn::uuid_t& uuid, const std::string& prefix)
 {
     return get_keys(generate_key(uuid, prefix));
+}
+
+std::vector<std::pair<bzn::key_t, bzn::value_t>>
+rocksdb_storage::get_matching(const bzn::uuid_t&/*uuid*/, const std::string& /*pattern*/, std::optional<std::string> /*end*/)
+{
+    std::vector<std::pair<bzn::key_t, bzn::value_t>> matches;
+
+    return matches;
 }

@@ -55,6 +55,8 @@ namespace bzn {
             void(const bzn::uuid_t& uuid, const std::string&, const std::string&));
         MOCK_METHOD2(get_keys_starting_with,
             std::vector<bzn::key_t>(const bzn::uuid_t& uuid, const std::string&));
+        MOCK_METHOD3(get_matching,
+            std::vector<std::pair<bzn::key_t, bzn::value_t>>(const bzn::uuid_t&, const std::string&, std::optional<std::string>));
     };
 
 }  // namespace bzn

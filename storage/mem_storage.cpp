@@ -17,6 +17,7 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/serialization/unordered_map.hpp>
 #include <boost/serialization/map.hpp>
+#include <regex>
 #include <sstream>
 
 using namespace bzn;
@@ -285,7 +286,7 @@ mem_storage::remove_range(const bzn::uuid_t& uuid, const std::string& begin_key,
 }
 
 std::vector<bzn::key_t>
-mem_storage::get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix)
+mem_storage::get_keys_starting_with(const bzn::uuid_t& uuid, const std::string& prefix)
 {
     std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
 
@@ -302,4 +303,57 @@ mem_storage::get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &
     }
 
     return keys;
+}
+
+// find matching records in storage based on a limited regular expression.
+// literals at the beginning of pattern can be used to optimize where the search starts and (if no end is specified),
+// where it ends. If end is specified then a range between the literals in start and end is searched for matches.
+// If there are no literals at the start of the pattern, searching begins at the start of records matching uuid.
+// If end is the empty string, searching continues to the end of records matching uuid.
+std::vector<std::pair<bzn::key_t, bzn::value_t>>
+mem_storage::get_matching(const bzn::uuid_t& uuid, const std::string& pattern, std::optional<std::string> end)
+{
+    std::shared_lock<std::shared_mutex> lock(this->lock); // lock for read access
+
+    auto start_key = this->make_start_prefix(pattern);
+    auto end_key = end ? *end : this->make_end_prefix(start_key);
+    auto fixed_size = start_key.size();
+    const std::regex exp(fixed_size < pattern.size() ? pattern.substr(fixed_size) : ".*");
+
+    std::vector<std::pair<bzn::key_t, bzn::value_t>> matches;
+
+    auto inner_db = this->kv_store.find(uuid);
+    if (inner_db != this->kv_store.end())
+    {
+        auto end_it = end_key.empty() ? inner_db->second.end() : inner_db->second.lower_bound(end_key);
+        for (auto it = inner_db->second.lower_bound(start_key); it != inner_db->second.end() && it != end_it; it++)
+        {
+            if (it->first.compare(0, fixed_size, start_key) >= 0 &&
+                (end_key.empty() || it->first.compare(0, fixed_size, end_key) <= 0) &&
+                std::regex_search(it->first.substr(fixed_size), exp, std::regex_constants::match_continuous))
+            {
+                matches.push_back(std::make_pair(it->first, it->second));
+            }
+        }
+    }
+
+    return matches;
+}
+
+std::string
+mem_storage::make_start_prefix(const std::string& pattern)
+{
+    return pattern.substr(0, pattern.find_first_of("[\\^$.|?*+()"));
+}
+
+std::string
+mem_storage::make_end_prefix(const std::string& start_prefix)
+{
+    auto end_prefix = start_prefix;
+    if (!start_prefix.empty())
+    {
+        assert(end_prefix[end_prefix.size() - 1] < 0x7f);
+        end_prefix[end_prefix.size() - 1]++;
+    }
+    return end_prefix;
 }

@@ -55,17 +55,19 @@ namespace bzn
     public:
         virtual ~storage_base() = default;
 
-        virtual bzn::storage_result create(const bzn::uuid_t& uuid, const std::string& key, const std::string& value) = 0;
+        virtual bzn::storage_result
+        create(const bzn::uuid_t& uuid, const std::string& key, const std::string& value) = 0;
 
         virtual std::optional<bzn::value_t> read(const bzn::uuid_t& uuid, const std::string& key) = 0;
 
-        virtual bzn::storage_result update(const bzn::uuid_t& uuid, const std::string& key, const std::string& value) = 0;
+        virtual bzn::storage_result
+        update(const bzn::uuid_t& uuid, const std::string& key, const std::string& value) = 0;
 
         virtual bzn::storage_result remove(const bzn::uuid_t& uuid, const std::string& key) = 0;
 
         virtual std::vector<bzn::key_t> get_keys(const bzn::uuid_t& uuid) = 0;
-        
-        virtual bool has(const bzn::uuid_t& uuid, const  std::string& key) = 0;
+
+        virtual bool has(const bzn::uuid_t& uuid, const std::string& key) = 0;
 
         virtual std::pair<std::size_t, std::size_t> get_size(const bzn::uuid_t& uuid) = 0;
 
@@ -77,9 +79,13 @@ namespace bzn
 
         virtual bool load_snapshot(const std::string& data) = 0;
 
-        virtual void remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) = 0;
+        virtual void
+        remove_range(const bzn::uuid_t& uuid, const std::string& begin_key, const std::string& end_key) = 0;
 
-        virtual std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t &uuid, const std::string &prefix) = 0;
-};
+        virtual std::vector<bzn::key_t> get_keys_starting_with(const bzn::uuid_t& uuid, const std::string& prefix) = 0;
+
+        virtual std::vector<std::pair<bzn::key_t, bzn::value_t>>
+        get_matching(const bzn::uuid_t& uuid, const std::string& pattern, std::optional<std::string> end = std::nullopt) = 0;
+    };
 
 } // bzn

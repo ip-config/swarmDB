@@ -318,3 +318,43 @@ TYPED_TEST(storageTest, test_range_queries)
     this->storage->remove_range(user_0, "be", "z");
     EXPECT_EQ(this->storage->get_size(user_0).first, 2u);
 }
+
+TYPED_TEST(storageTest, test_get_matches)
+{
+    const bzn::uuid_t user_0{"b9dc2595-15ee-435a-8af7-7cafc132f527"};
+
+    this->storage->create(user_0, "0001_somehash_1_0", "value");
+    this->storage->create(user_0, "0001_somehash_1_1", "value");
+    this->storage->create(user_0, "0001_somehash_1_2", "value");
+
+    this->storage->create(user_0, "0002_somehash_1_0", "value");
+    this->storage->create(user_0, "0002_somehash_1_1", "value");
+
+    this->storage->create(user_0, "0003_otherhash_1_0", "value");
+    this->storage->create(user_0, "0003_somehash_1_1", "value");
+    this->storage->create(user_0, "0003_somehash_1_2", "value");
+
+    this->storage->create(user_0, "0004_somehash_2_0", "value");
+
+    this->storage->create(user_0, "0005_somehash_2_0", "value");
+    this->storage->create(user_0, "0005_otherhash_2_1", "value");
+    this->storage->create(user_0, "0005_somehash_2_2", "value");
+
+    this->storage->create(user_0, "0006_somehash_1_0", "value");
+    this->storage->create(user_0, "0006_somehash_1_1", "value");
+    this->storage->create(user_0, "0006_otherhash_1_2", "value");
+
+    EXPECT_EQ(this->storage->get_matching(user_0, "").size(), 15u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "", "").size(), 15u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0003").size(), 3u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0003", "").size(), 10u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0003", "0003").size(), 0u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0003", "0002").size(), 0u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0003_somehash_1_1").size(), 1u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0001_somehash").size(), 3u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0004_somehash").size(), 1u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0001_.*_[0-9]*_1").size(), 1u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "000._.*_[0-9]*_1").size(), 5u);
+    EXPECT_EQ(this->storage->get_matching(user_0, "0001_.*_[0-9]*_1", "0004").size(), 3u);
+    EXPECT_EQ(this->storage->get_matching(user_0, ".*_.*_2_.*").size(), 4u);
+}
